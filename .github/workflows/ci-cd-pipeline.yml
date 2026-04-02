@@ -1,0 +1,37 @@
+name: Build and Push
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Build Image
+        run: docker build -t app:${{ github.sha }} .
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget https://aquasecurity.github.io/trivy-repo/deb/public.key
+          sudo apt-key add public.key
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Scan Image
+        run: trivy image app:${{ github.sha }}
+
+      - name: Tag Image
+        run: |
+          docker tag app:${{ github.sha }} localhost:5000/company/app:${{ github.sha }}
+          docker tag app:${{ github.sha }} localhost:5000/company/app:latest
+
+      - name: Push Image
+        run: docker push --all-tags localhost:5000/company/app
